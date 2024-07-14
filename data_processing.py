@@ -5,6 +5,9 @@
 import pandas as pd
 import numpy as np
 import yfinance as yf
+import matplotlib.pyplot as plt
+import statsmodels.api as sm
+
 
 '''
 # Given history, we are going to use vanguard funds
@@ -16,21 +19,51 @@ import yfinance as yf
 "^IRX" TBill 3 month
 '''
 
-df = yf.download(['VFICX', 'VWEHX', 'VUSXX', 'SPY','^VIX', '^IRX'], start = '2000-01-01', end = '2024-06-30')
+tickers_funds = ['VFICX', 'VWEHX', 'VFISX','SPY']
+tickers_others = ['^VIX', '^IRX']
+df = yf.download(tickers_funds + tickers_others, start = '2000-01-01', end = '2024-06-30')
+df = df.resample('M').last()
 df = df['Adj Close']
-print(df)
+rets = np.log(df[tickers_funds] / df[tickers_funds].shift(1)).dropna()
+rets['IRX'] = df['^IRX']/12/100
+df_fin = rets.copy()
+df_fin['VIX'] = df['^VIX']
+df_fin['VIX_change'] = df_fin['VIX'] - df_fin['VIX'].shift(1)
+df_fin = df_fin.dropna()
+
+# 3. Compute cumulative returns
+cum_logrets = rets.cumsum()
+cum_rets = np.exp(cum_logrets) - 1
+#cum_rets.plot()
+
+# VIX orthogonal
+x = sm.add_constant(df_fin['SPY'])
+print(df_fin['VIX_change'], x)
+model = sm.OLS(df_fin['VIX_change'],x).fit()
+residuals = model.resid
+df_fin['VIX_orthogonal'] = residuals
+
+# Sharpe ratios
+df_sharpe = rets.copy()
+df_sharpe = df_sharpe.sub(rets['IRX'], axis = 0)
+sharpe = df_sharpe.mean()/df_sharpe.std()
+print(sharpe)
+
 
 # Next steps
-# 1. deannualize risk free
-# 1. Compute the yield spreads
-# 2. Compute returns
-# 3. Compute cumulative returns
-# 4. Compute volatilities
-# 5. Compute sharpe ratios
-# 6. Generate VIX orthogonal?
-# Do a check if we have table information
-# 7. Am I going to include more information?
-# AT 6 PM GIT REPO SEND
+
+# GIT REPO SEND 20 MINUTES BREAK
+# 4. Functions
+# GIT REPO SEND 10 MINUTES BREAK
+# 5. Am I going to include more information? YES. USE PSEUDO CODE AI
+# GIT REPO SEND 20 MINUTES BREAK
+# 6. Add a code to save graphs
+# GIT REPO SEND 10 MINUTES BREAK
+# IMPORTANTE: 9 PM CORTE, ENVIAR ESTO Y VERANO A MAIL
+
+# MONDAY
+# 1. Compute the yield spreads (BBG data?)
+
 
 '''
 data_grid, err = ek.get_data(['AAPL.O', 'IBM', 'GOOG.O', 'AMZN.O'],
