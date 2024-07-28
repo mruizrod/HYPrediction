@@ -7,6 +7,7 @@ import numpy as np
 import yfinance as yf
 import matplotlib.pyplot as plt
 import statsmodels.api as sm
+from scipy.stats import skew, kurtosis
 
 
 '''
@@ -28,9 +29,10 @@ def getYFdata(tickers, startd ='2000-01-01', endd = '2024-06-30'):
 def getReturns(df,tickers_funds):
     rets = np.log(df[tickers_funds] / df[tickers_funds].shift(1)).dropna()
     rets['IRX'] = df['^IRX']/12/100
+    rets.columns = rets.columns + 'Returns'
     cum_logrets = rets.cumsum()
     cum_rets = np.exp(cum_logrets) - 1
-    # cum_rets.plot()
+    #cum_rets.plot()
     return rets, cum_rets
 
 def addVIXdata(df, orthogonal = True):
@@ -42,13 +44,38 @@ def addVIXdata(df, orthogonal = True):
         model = sm.OLS(df['VIX_change'], x).fit()
         residuals = model.resid
         df['VIX_orthogonal'] = residuals
+    df = df.loc[:,['VIX','VIX_change','VIX_orthogonal']]
     return df
 
 def getSharpeRatios(df):
     df_sharpe = df.copy()
-    df_sharpe = df_sharpe.sub(rets['IRX'], axis=0)
+    df_sharpe = df_sharpe.sub(df_sharpe['IRX'], axis=0)
     sharpe = df_sharpe.mean() / df_sharpe.std()
     return sharpe
+
+def getYields():
+    filename_input = r'C:\Users\maryj\Documents\MLProjects\HighYield\HY\data\yields.xlsx'
+    yields = pd.read_excel(filename_input,sheet_name='Yields', index_col=0)
+    yields.columns = yields.columns + 'Yield'
+    yields = yields.resample('M').last()
+    return yields
+
+def buildDatabase(tickers_funds, tickers_others):
+    data = getYFdata(tickers_funds + tickers_others)
+    vix_data = addVIXdata(data)
+    returns, cum_returns = getReturns(data, tickers_funds)
+    yields = getYields()
+    df = returns.join(vix_data, how = 'left')
+    df = df.join(yields, how = 'left')
+    cols = yields.columns
+    cols_new = cols + 'Spread'
+    data = data.loc[:,['^IRX']]
+    df = df.join(data, how = 'left')
+    df[cols_new] = df[cols].sub(df['^IRX'], axis = 0)
+    return df
+
+
+
 
 def buildFeatures(data, ric, lags, window=12):
     cols = []
@@ -71,14 +98,12 @@ def buildFeatures(data, ric, lags, window=12):
     df.dropna(inplace=True)
     return df, cols
 
-# Next steps
-# Am I going to include more information? YES. USE PSEUDO CODE AI
-# GIT REPO SEND 20 MINUTES BREAK
-# 6. Add a code to save graphs
-# GIT REPO SEND 10 MINUTES BREAK
-# IMPORTANTE: 9 PM CORTE, ENVIAR ESTO Y VERANO A MAIL
+# TODAY GOAL
+# Compute all yield spreads
+# Make a table similar to paper
+# Read following part of the paper (see if I need to something else)
 
-# 1. Compute the yield spreads (BBG data?)
+
 
 
 '''
@@ -99,5 +124,6 @@ split = int(len(dfs[sym]) * 0.8)
 if __name__ == '__main__':
     tickers_funds = ['VFICX', 'VWEHX', 'VFISX','SPY']
     tickers_others = ['^VIX', '^IRX']
-    data = getYFdata(tickers_funds + tickers_others)
+    df = buildDatabase(tickers_funds, tickers_others)
+    exit()
     data_new, cols = buildFeatures(data, 'VWEHX',lags = 6)
