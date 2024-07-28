@@ -27,8 +27,8 @@ def getYFdata(tickers, startd ='2000-01-01', endd = '2024-06-30'):
     return df
 
 def getReturns(df,tickers_funds):
-    rets = np.log(df[tickers_funds] / df[tickers_funds].shift(1)).dropna()
-    rets['IRX'] = df['^IRX']/12/100
+    rets = np.log(df[tickers_funds] / df[tickers_funds].shift(1)).dropna()*100
+    rets['IRX'] = df['^IRX']/12
     rets.columns = rets.columns + 'Returns'
     cum_logrets = rets.cumsum()
     cum_rets = np.exp(cum_logrets) - 1
@@ -74,7 +74,19 @@ def buildDatabase(tickers_funds, tickers_others):
     df[cols_new] = df[cols].sub(df['^IRX'], axis = 0)
     return df
 
+def calculate_stats(df):
+    stats_df = pd.DataFrame(index=df.columns)
+    stats_df['mean'] = df.mean()
+    stats_df['std_dev'] = df.std()
+    stats_df['skewness'] = df.apply(skew)
+    stats_df['excess_kurtosis'] = df.apply(lambda x: kurtosis(x) - 3)
+    stats_df['top_decile'] = df.apply(lambda x: np.percentile(x, 90))
+    stats_df['bottom_decile'] = df.apply(lambda x: np.percentile(x, 10))
+    # Autocorrelation with lags 1, 2, 3, 4
+    for lag in range(1, 5):
+        stats_df[f'autocorr_lag_{lag}'] = df.apply(lambda x: x.autocorr(lag))
 
+    return stats_df
 
 
 def buildFeatures(data, ric, lags, window=12):
@@ -125,5 +137,8 @@ if __name__ == '__main__':
     tickers_funds = ['VFICX', 'VWEHX', 'VFISX','SPY']
     tickers_others = ['^VIX', '^IRX']
     df = buildDatabase(tickers_funds, tickers_others)
+    statsdf = calculate_stats(df)
+    df.to_excel(r'C:\Users\maryj\Documents\MLProjects\HighYield\HY\finaldf.xlsx')
+    statsdf.to_excel(r'C:\Users\maryj\Documents\MLProjects\HighYield\HY\dfstats.xlsx')
     exit()
     data_new, cols = buildFeatures(data, 'VWEHX',lags = 6)
